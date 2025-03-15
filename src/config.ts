@@ -7,7 +7,8 @@
 export const API_BASE_URL = import.meta.env.API_BASE_URL || 'https://gunstorewebsite.com';
 
 // Redis configuration
-export const REDIS_URL = import.meta.env.REDIS_URL || '';
+// Check for both REDIS_URL and legacy REDIS environment variables
+export const REDIS_URL = import.meta.env.REDIS_URL || import.meta.env.REDIS || '';
 
 // Environment detection
 export const isDevelopment = import.meta.env.DEV === true;

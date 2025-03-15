@@ -8,23 +8,25 @@ let isRedisAvailable = false;
 // In-memory cache as fallback
 const memoryCache: Record<string, { value: any; expiry: number }> = {};
 
-// Initialize Redis connection
-try {
-  if (REDIS_URL) {
+// Initialize Redis connection if REDIS_URL is provided
+if (REDIS_URL) {
+  try {
     redis = new Redis(REDIS_URL);
     redis.on('connect', () => {
-      console.log('Redis connected successfully');
+      console.log('✅ Redis connected successfully');
       isRedisAvailable = true;
     });
     redis.on('error', (err) => {
-      console.error('Redis connection error:', err);
+      console.error('❌ Redis connection error:', err);
       isRedisAvailable = false;
+      console.log('⚠️ Falling back to in-memory cache');
     });
-  } else {
-    console.log('No REDIS_URL provided, using memory cache only');
+  } catch (error) {
+    console.error('❌ Error initializing Redis:', error);
+    console.log('⚠️ Falling back to in-memory cache');
   }
-} catch (error) {
-  console.error('Error initializing Redis:', error);
+} else {
+  console.log('ℹ️ Redis disabled - using in-memory cache (this is normal in development)');
 }
 
 /**
