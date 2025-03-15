@@ -44,17 +44,30 @@ const fetchProduct = async (productId: string | undefined) => {
 
 // Fetch product add-ons
 const fetchProductAddOns = async (productId: string | undefined) => {
-  if (!productId) return { addons: [] };
+  if (!productId) return null;
   
   try {
     let baseUrl = "https://gunstorewebsite.com";
-    const url = `${baseUrl}/apiproductaddons_${productId}`;
+    // Updated URL format to match SvelteKit version
+    const url = `${baseUrl}/api/productadd-ons_${productId}`;
+    
     const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch product add-ons');
-    return await response.json();
+    if (!response.ok) {
+      console.error('Add-ons response not OK:', response.status);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const text = await response.text();
+    
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      console.error('Error parsing add-ons JSON:', parseError);
+      return null;
+    }
   } catch (error) {
     console.error('Error fetching product add-ons:', error);
-    return { addons: [] };
+    return null;
   }
 };
 
@@ -62,18 +75,8 @@ const fetchProductAddOns = async (productId: string | undefined) => {
 const productData = await fetchProduct(productId);
 const addOnsData = await fetchProductAddOns(productId);
 
-// Extract product and add-ons
+// Extract product information
 const product = productData.product || {};
-const addOns = addOnsData.addons || [];
-
-// Optimize images
-product.image = optimizeImageUrl(product.productimage || (product.image && product.image.url));
-addOns.forEach((addon: any) => {
-  addon.image = optimizeImageUrl(addon.productimage || (addon.image && addon.image.url));
-});
-
-// Page title
-const pageTitle = product.productname ? `${product.productname} - ${store.storename}` : store.storename;
 
 // Format price
 const formatPrice = (price: any) => {
@@ -89,249 +92,556 @@ const formatPrice = (price: any) => {
 
 // Check if product is in stock
 const inStock = product.productstock > 0;
+
+// Prepare optimized image URLs
+const productImages = [
+  product.productimage,
+  product.img2,
+  product.img3,
+  product.img4,
+  product.img5,
+  product.img6,
+  product.img7
+].filter(Boolean).map(img => optimizeImageUrl(img));
+
+// Page title
+const pageTitle = product.productname ? `${product.productname} - ${store.storename}` : store.storename;
 ---
 
 <Layout title={pageTitle}>
-  <main class="max-w-7xl mx-auto px-4 py-8">
+  <main class="container mx-auto px-4 py-8 bg-white text-gray-900">
     <!-- Breadcrumb -->
-    <nav class="flex mb-6 text-sm">
-      <ol class="inline-flex items-center space-x-1 md:space-x-3">
-        <li class="inline-flex items-center">
-          <a href="/" class="text-gray-700 hover:text-red-600 dark:text-gray-300 dark:hover:text-white">
-            Home
-          </a>
-        </li>
-        <li>
-          <div class="flex items-center">
-            <span class="mx-2 text-gray-400">/</span>
-            {product.categoryid && (
-              <a href={`/category_${product.categoryid}`} class="text-gray-700 hover:text-red-600 dark:text-gray-300 dark:hover:text-white">
-                {product.categoryname || 'Category'}
-              </a>
-            )}
-          </div>
-        </li>
-        <li aria-current="page">
-          <div class="flex items-center">
-            <span class="mx-2 text-gray-400">/</span>
-            <span class="text-gray-500 dark:text-gray-400">{product.productname}</span>
-          </div>
-        </li>
-      </ol>
+    <nav class="text-sm text-gray-600 mb-6">
+      <a href="/" class="hover:text-red-600 transition-colors">Home</a> &gt; 
+      {product.categoryid && (
+        <a href={`/category_${product.categoryid}`} class="hover:text-red-600 transition-colors">
+          {product.categoryname || 'Category'}
+        </a>
+      )} &gt;
+      <span class="text-black">{product.productname}</span>
     </nav>
 
     <!-- Product Details -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-      <!-- Product Image -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-md">
-        <img 
-          src={product.image} 
-          alt={product.productname} 
-          class="w-full h-auto object-contain aspect-square"
-        />
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <!-- Image Gallery -->
+      <div class="space-y-4">
+        <img src={productImages[0]} alt="Main {product.productname} Image" class="w-full rounded-lg shadow-lg" id="main-product-image" />
+        
+        {productImages.length > 1 && (
+          <div class="grid grid-cols-4 gap-2">
+            {productImages.map((image, index) => (
+              <img 
+                src={image} 
+                alt={`${product.productname} ${index + 1}`} 
+                class="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer product-thumbnail"
+                data-image-url={image}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      <!-- Product Info -->
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">{product.productname}</h1>
-        
-        <!-- Price -->
-        <div class="flex items-center gap-3 mb-4">
+      <!-- Product Details -->
+      <div class="space-y-6">
+        <h1 class="text-3xl font-bold text-black">{product.productname}</h1>
+        <div class="flex items-center gap-2">
           {product.productretailprice && parseFloat(product.productretailprice) > parseFloat(product.productprice) && (
-            <p class="text-gray-500 line-through text-lg">
-              ${formatPrice(product.productretailprice)}
-            </p>
+            <span class="text-2xl font-semibold text-gray-500 line-through">${formatPrice(product.productretailprice)}</span>
           )}
-          <p class="text-2xl font-bold text-red-600">
-            ${formatPrice(product.productprice)}
-          </p>
+          <div class="text-2xl font-semibold text-red-600" id="product-price">${formatPrice(product.productprice)}</div>
         </div>
-
-        <!-- Stock Status -->
-        <div class="mb-6">
-          {inStock ? (
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-              In Stock: {product.productstock}
-            </span>
-          ) : (
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-              Out of Stock
-            </span>
-          )}
-        </div>
-
-        <!-- Short Description -->
-        {product.shortdescription && (
-          <div class="mb-6 text-gray-700 dark:text-gray-300">
-            <p>{product.shortdescription}</p>
+        
+        <div class="text-sm text-gray-600">Inventory: {product.productstock}</div>
+        
+        <p class="text-gray-700">{product.productshortdesc}</p>
+        
+        {product.freeship && (
+          <div class="p-3 border border-black rounded-lg">
+            <h2 class="text-lg font-bold">Free Shipping!</h2>
+          </div>
+        )}
+        
+        {product.isffl && (
+          <div class="p-3 border border-red-600 rounded-lg">
+            <h2 class="text-s font-semibold">FFL Item, must ship to your local dealer</h2>
           </div>
         )}
 
-        <!-- Add to Cart Button -->
-        <div class="mb-8">
-          <button 
-            id="add-to-cart-btn"
-            class={`w-full py-3 px-6 rounded-md font-semibold text-white transition ${
-              inStock 
-                ? 'bg-red-600 hover:bg-red-700' 
-                : 'bg-gray-400 cursor-not-allowed'
-            }`}
-            disabled={!inStock}
-            data-product-id={product.ID}
-            data-product-name={product.productname}
-            data-product-price={product.productprice}
-            data-product-image={product.image}
-          >
-            {inStock ? 'Add to Cart' : 'Out of Stock'}
-          </button>
+        <!-- Product Add-Ons Section -->
+        {addOnsData && addOnsData.AddOns && addOnsData.AddOns.length > 0 && (
+          <div class="mt-6 space-y-4" id="product-add-ons">
+            <h2 class="text-m font-semibold text-black mb-4">Customize Your {product.productname}</h2>
+            
+            <div id="validation-error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 hidden" role="alert">
+              <span class="block sm:inline" id="validation-error-text"></span>
+            </div>
+            
+            {addOnsData.AddOns.map((addon: any) => (
+              <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div class="flex items-center gap-2 mb-2">
+                  <h3 class="text-lg font-medium text-black">{addon.addonname}</h3>
+                  {addon.hasoptions && addOnsData.OptionNames.find((on: any) => on.ID === addon.optionnameid)?.required && (
+                    <span class="text-red-600 text-sm font-medium">*Required</span>
+                  )}
+                </div>
+                
+                {addon.desc && <p class="text-sm text-gray-600 mb-3">{addon.desc}</p>}
+                
+                {addon.hasoptions ? (
+                  <select 
+                    class="w-full p-2 border border-gray-300 rounded-lg bg-white addon-option-select"
+                    name={`addon-${addon.ID}`}
+                    data-addon-id={addon.ID}
+                    data-addon-name={addon.addonname}
+                    data-required={addOnsData.OptionNames.find((on: any) => on.ID === addon.optionnameid)?.required || "false"}
+                  >
+                    <option value="">None</option>
+                    {addOnsData.Options.filter((option: any) => option.optionnameid === addon.optionnameid).map((option: any) => (
+                      <option 
+                        value={option.ID}
+                        data-option-name={option.optionname}
+                        data-option-price={option.optionprice}
+                        data-option-img={option.optionimg}
+                      >
+                        {option.optionname} 
+                        {parseFloat(option.optionprice) > 0 ? `(+$${parseFloat(option.optionprice).toFixed(2)})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <label class="flex items-center space-x-3 p-3 rounded-lg border border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      class="form-checkbox simple-addon-checkbox"
+                      data-addon-id={addon.ID}
+                      data-addon-name={addon.addonname}
+                      data-addon-price={addon.price}
+                    />
+                    <div class="flex-1">
+                      <div class="flex items-center justify-between">
+                        <span class="font-medium">{addon.addonname}</span>
+                        <div class="flex items-center gap-4">
+                          {parseFloat(addon.price) > 0 && (
+                            <span class="text-red-600">+${parseFloat(addon.price).toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                )}
+                
+                <div class="option-image mt-2 hidden" data-addon-id={addon.ID}></div>
+              </div>
+            ))}
+
+            <div class="bg-gray-100 p-4 rounded-lg mt-4">
+              <h3 class="text-xl font-semibold">Total Price: <span id="total-price">${formatPrice(product.productprice)}</span></h3>
+            </div>
+          </div>
+        )}
+
+        <!-- Add to Cart Section -->
+        <div class="flex flex-col space-y-4">
+          {inStock ? (
+            <div class="flex flex-wrap items-center gap-4">
+              <button 
+                id="add-to-cart-btn"
+                class="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors"
+                data-product-id={product.ID}
+                data-product-name={product.productname}
+                data-product-price={product.productprice}
+                data-product-image={product.productimage}
+              >
+                Add to Cart
+              </button>
+              
+              <button 
+                id="add-to-cart-with-options-btn" 
+                class="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors hidden"
+              >
+                Add to Cart with Options
+              </button>
+              
+              <a href="/" class="bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors">
+                Continue Shopping
+              </a>
+            </div>
+          ) : (
+            <button 
+              disabled 
+              class="bg-gray-400 text-white px-6 py-3 rounded-lg cursor-not-allowed"
+            >
+              Out of Stock
+            </button>
+          )}
         </div>
 
-        <!-- Product Metadata -->
-        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <div class="grid grid-cols-2 gap-4 text-sm">
-            {product.sku && (
-              <div>
-                <span class="text-gray-500 dark:text-gray-400">SKU:</span>
-                <span class="ml-2 text-gray-900 dark:text-gray-200">{product.sku}</span>
-              </div>
-            )}
-            {product.categoryname && (
-              <div>
-                <span class="text-gray-500 dark:text-gray-400">Category:</span>
-                <a 
-                  href={`/category_${product.categoryid}`}
-                  class="ml-2 text-red-600 hover:underline"
-                >
-                  {product.categoryname}
-                </a>
-              </div>
-            )}
+        <!-- Cart Status Section -->
+        <div id="cart-status" class="bg-gray-100 p-4 rounded-lg border border-gray-300 hidden">
+          <h5 class="text-lg font-semibold text-black">In Cart: <span id="cart-quantity">0</span></h5>
+          <div id="cart-options" class="text-sm text-gray-600 mt-2 hidden">
+            Selected options:
+            <div id="cart-options-list"></div>
           </div>
+          <button 
+            id="remove-from-cart-btn"
+            class="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200"
+          >
+            Remove
+          </button>
+          <a href="/checkout" class="mx-4 mt-3 inline-block text-black hover:text-red-600 transition-colors">
+            Go To Cart <i class="fas fa-shopping-cart text-2xl"></i>
+          </a>
         </div>
       </div>
     </div>
 
+    <hr class="mx-auto mt-4">
+
     <!-- Product Description -->
-    {product.description && (
-      <div class="mb-12">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Description</h2>
-        <div class="prose prose-red max-w-none dark:prose-invert text-gray-700 dark:text-gray-300">
-          <p>{product.description}</p>
+    <div class="mt-6">
+      <h2 class="text-xl font-semibold text-black mb-2">Product Description</h2>
+      <div class="text-gray-700 prose prose-sm max-w-none">
+        {product.productdesc ? (
+          <div set:html={product.productdesc} />
+        ) : (
+          <p>{product.productshortdesc}</p>
+        )}
+      </div>
+    </div>
+
+    <!-- Product Specs -->
+    {(product.weight || product.length || product.width) && (
+      <div class="bg-gray-100 p-4 rounded-lg border border-gray-300 mt-6">
+        <h2 class="text-lg font-semibold mb-2 text-black">Product Specs</h2>
+        <p class="text-sm text-gray-700">
+          {product.weight && `Weight: ${product.weight}`} 
+          {product.length && `, Length: ${product.length}`} 
+          {product.width && `, Width: ${product.width}`}
+        </p>
+      </div>
+    )}
+
+    <!-- Additional Images -->
+    {(product.img4 || product.img5 || product.img6 || product.img7) && (
+      <div class="mt-4">
+        <hr class="border-t-4 border-red-700 my-4">     
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {product.img4 && (
+            <img src={optimizeImageUrl(product.img4)} alt="Additional view 1" class="w-full" />
+          )}
+          {product.img5 && (
+            <img src={optimizeImageUrl(product.img5)} alt="Additional view 2" class="w-full" />
+          )}
+          {product.img6 && (
+            <img src={optimizeImageUrl(product.img6)} alt="Additional view 3" class="w-full" />
+          )}
+          {product.img7 && (
+            <img src={optimizeImageUrl(product.img7)} alt="Additional view 4" class="w-full" />
+          )}
         </div>
       </div>
     )}
 
-    <!-- Product Add-ons -->
-    {addOns.length > 0 && (
-      <div class="mb-12">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Recommended Add-ons</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {addOns.map((addon: any) => (
-            <a href={`/product_${addon.ID}`} class="group">
-              <div class="bg-white dark:bg-gray-700 rounded-lg overflow-hidden shadow-md transition hover:shadow-lg h-full">
-                <div class="overflow-hidden">
-                  <img 
-                    src={addon.image} 
-                    alt={addon.productname} 
-                    class="w-full h-48 object-cover transition duration-300 group-hover:scale-105"
-                  />
-                </div>
-                <div class="p-4">
-                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">{addon.productname}</h3>
-                  <p class="text-red-600 font-bold mb-2">${formatPrice(addon.productprice)}</p>
-                  <button 
-                    class="add-addon-to-cart w-full py-2 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 rounded text-sm font-medium transition"
-                    data-product-id={addon.ID}
-                    data-product-name={addon.productname}
-                    data-product-price={addon.productprice}
-                    data-product-image={addon.image}
-                  >
-                    Add to Cart
-                  </button>
-                </div>
-              </div>
-            </a>
-          ))}
+    <!-- Video Section -->
+    {product.video && (
+      <div class="mt-12 bg-gray-800 p-6 rounded-lg">
+        <h2 class="text-2xl font-semibold mb-4 text-gray-200">Product Video</h2>
+        <div class="relative pt-[56.25%]">
+          <video 
+            id="videoPlayer"
+            class="absolute top-0 left-0 w-full h-full rounded-lg"
+            controls
+            preload="metadata"
+            poster={product.productimage}          
+          >
+            <source src={product.video} type="video/mp4">
+            <track kind="captions" src="" label="English" srclang="en" default>
+            Your browser does not support the video tag.
+          </video>
         </div>
       </div>
     )}
+
+    <!-- Warranty Section -->
+    <div class="mt-4">
+      <h5 class="text-center font-semibold">--Warranty--</h5>
+      <p class="text-center text-xs">
+        Tennessee Arms Products are warranted to be free from defects in materials or workmanship. 
+        Tennessee Arms will, at its sole option, repair or replace any components 
+        that fail in normal use. Such repairs or replacement will be made at no charge to the customer 
+        for parts or labor, provided the customer shall be responsible for any transportation and/or
+         shipping cost. This warranty does not apply to: (i) cosmetic damage, such as scratches, 
+         nicks and dents; (ii) consumable parts; (iii) damage caused by accident, abuse, misuse,
+          water, flood, fire, or other acts of nature or external causes; (iv) damage caused by
+           service or repair performed by anyone who is not an authorized service provider of 
+           Tennessee Arms; or (v) damage to a product that has been modified or altered. In 
+           addition, Tennessee Arms reserves the right to refuse warranty claims against products or 
+           services that are obtained and/or used in contravention of the laws of any country.By purchasing any 
+           Tennessee Arms Product or Service you agree to the terms of this warranty.
+      </p>
+    </div>
   </main>
 </Layout>
 
 <script>
-  // Cart functionality
+  // Define types for TypeScript
+  interface CartItem {
+    id: string;
+    name: string;
+    price: number;
+    image: string;
+    quantity: number;
+    selectedOptions?: Record<string, ProductOption>;
+  }
+
+  interface ProductOption {
+    optionId?: string;
+    optionname: string;
+    optionprice?: number;
+    addonname: string;
+    addonId?: string;
+    optionimg?: string;
+    price?: number;
+    isSimpleAddon?: boolean;
+  }
+
+  // Cart and product functionality
   document.addEventListener('DOMContentLoaded', () => {
-    // Add to cart button
+    // Elements
+    const mainImage = document.getElementById('main-product-image') as HTMLImageElement;
+    const thumbnails = document.querySelectorAll('.product-thumbnail');
+    const productPriceEl = document.getElementById('product-price');
+    const totalPriceEl = document.getElementById('total-price');
     const addToCartBtn = document.getElementById('add-to-cart-btn');
-    if (addToCartBtn) {
-      addToCartBtn.addEventListener('click', () => {
-        const productId = addToCartBtn.getAttribute('data-product-id');
-        const productName = addToCartBtn.getAttribute('data-product-name');
-        const productPriceStr = addToCartBtn.getAttribute('data-product-price');
-        const productPrice = productPriceStr ? parseFloat(productPriceStr) : 0;
-        const productImage = addToCartBtn.getAttribute('data-product-image');
+    const addToCartWithOptionsBtn = document.getElementById('add-to-cart-with-options-btn');
+    const removeFromCartBtn = document.getElementById('remove-from-cart-btn');
+    const cartStatusEl = document.getElementById('cart-status');
+    const cartQuantityEl = document.getElementById('cart-quantity');
+    const cartOptionsEl = document.getElementById('cart-options');
+    const cartOptionsListEl = document.getElementById('cart-options-list');
+    const validationErrorEl = document.getElementById('validation-error');
+    const validationErrorTextEl = document.getElementById('validation-error-text');
+    const optionSelects = document.querySelectorAll('.addon-option-select');
+    const simpleAddonCheckboxes = document.querySelectorAll('.simple-addon-checkbox');
+    
+    // State
+    let selectedOptions: Record<string, ProductOption> = {};
+    let basePrice = parseFloat(addToCartBtn?.getAttribute('data-product-price') || '0');
+    let totalPrice = basePrice;
+    let hasSelectedOptions = false;
+    
+    // Functions
+    function updateTotalPrice() {
+      let calculatedTotal = basePrice;
+      
+      // Add option prices
+      Object.values(selectedOptions).forEach((option: ProductOption) => {
+        if (option) {
+          calculatedTotal += parseFloat(String(option.optionprice || option.price || '0'));
+        }
+      });
+      
+      totalPrice = calculatedTotal;
+      if (totalPriceEl) {
+        totalPriceEl.textContent = `$${totalPrice.toFixed(2)}`;
+      }
+      
+      // Show or hide the appropriate add to cart button
+      if (hasSelectedOptions) {
+        if (addToCartBtn) addToCartBtn.classList.add('hidden');
+        if (addToCartWithOptionsBtn) addToCartWithOptionsBtn.classList.remove('hidden');
+      } else {
+        if (addToCartBtn) addToCartBtn.classList.remove('hidden');
+        if (addToCartWithOptionsBtn) addToCartWithOptionsBtn.classList.add('hidden');
+      }
+      
+      return calculatedTotal;
+    }
+    
+    function validateRequiredOptions() {
+      const requiredSelects = Array.from(optionSelects).filter(select => 
+        (select as HTMLSelectElement).getAttribute('data-required') === 'true'
+      );
+      
+      const missingRequired = requiredSelects.filter(select => !(select as HTMLSelectElement).value);
+      
+      if (missingRequired.length > 0) {
+        const addonNames = missingRequired.map(select => 
+          (select as HTMLSelectElement).getAttribute('data-addon-name')
+        );
         
-        // Add to cart
-        addToCart({
-          id: productId,
-          name: productName,
-          price: productPrice,
-          image: productImage,
-          quantity: 1
-        });
+        if (validationErrorEl && validationErrorTextEl) {
+          validationErrorTextEl.textContent = `Please select required options: ${addonNames.join(', ')}`;
+          validationErrorEl.classList.remove('hidden');
+        }
         
-        // Show notification
-        showNotification(`${productName} added to cart`);
+        return false;
+      }
+      
+      if (validationErrorEl) {
+        validationErrorEl.classList.add('hidden');
+      }
+      
+      return true;
+    }
+    
+    function handleOptionSelection(addonId: string | null, option: ProductOption | null) {
+      if (!option) {
+        if (addonId && selectedOptions[addonId]) {
+          delete selectedOptions[addonId];
+        }
+      } else if (addonId) {
+        selectedOptions[addonId] = option;
+      }
+      
+      // Check if we have any selected options
+      hasSelectedOptions = Object.keys(selectedOptions).length > 0;
+      
+      // Update total price
+      updateTotalPrice();
+      
+      // Update UI for option images
+      updateOptionImages();
+    }
+    
+    function updateOptionImages() {
+      // Clear and hide all option image containers
+      document.querySelectorAll('.option-image').forEach(container => {
+        container.innerHTML = '';
+        container.classList.add('hidden');
+      });
+      
+      // Show images for selected options
+      Object.entries(selectedOptions).forEach(([addonId, option]) => {
+        const container = document.querySelector(`.option-image[data-addon-id="${addonId}"]`);
+        if (container && option.optionimg) {
+          const img = document.createElement('img');
+          img.src = option.optionimg;
+          img.alt = option.optionname;
+          img.className = 'w-full max-w-[200px] object-cover rounded mx-auto';
+          
+          container.innerHTML = '';
+          container.appendChild(img);
+          container.classList.remove('hidden');
+        }
       });
     }
     
-    // Add-on to cart buttons
-    const addAddonBtns = document.querySelectorAll('.add-addon-to-cart');
-    addAddonBtns.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        
-        const productId = btn.getAttribute('data-product-id');
-        const productName = btn.getAttribute('data-product-name');
-        const productPriceStr = btn.getAttribute('data-product-price');
-        const productPrice = productPriceStr ? parseFloat(productPriceStr) : 0;
-        const productImage = btn.getAttribute('data-product-image');
-        
-        // Add to cart
-        addToCart({
-          id: productId,
-          name: productName,
-          price: productPrice,
-          image: productImage,
-          quantity: 1
-        });
-        
-        // Show notification
-        showNotification(`${productName} added to cart`);
-      });
-    });
-    
-    // Add to cart function
-    function addToCart(product: any) {
+    function updateCartStatus() {
       const cartData = localStorage.getItem('cart');
-      let cart = cartData ? JSON.parse(cartData) : [];
+      const cart: CartItem[] = cartData ? JSON.parse(cartData) : [];
       
-      // Check if product already in cart
-      const existingProductIndex = cart.findIndex((item: any) => item.id === product.id);
+      // Find matching product in cart
+      const productId = addToCartBtn?.getAttribute('data-product-id');
+      let cartProduct: CartItem | undefined;
+      
+      if (hasSelectedOptions) {
+        // Find product with matching options
+        const selectedOptionsJSON = JSON.stringify(selectedOptions);
+        cartProduct = cart.find(item => 
+          item.id === productId && 
+          JSON.stringify(item.selectedOptions) === selectedOptionsJSON
+        );
+      } else {
+        // Find product without options
+        cartProduct = cart.find(item => 
+          item.id === productId && 
+          !item.selectedOptions
+        );
+      }
+      
+      if (cartProduct) {
+        // Show cart status
+        if (cartStatusEl) cartStatusEl.classList.remove('hidden');
+        if (cartQuantityEl) cartQuantityEl.textContent = cartProduct.quantity.toString();
+        
+        // Show options if present
+        if (cartOptionsEl && cartOptionsListEl) {
+          if (cartProduct.selectedOptions) {
+            cartOptionsEl.classList.remove('hidden');
+            
+            // Populate options list
+            cartOptionsListEl.innerHTML = '';
+            Object.values(cartProduct.selectedOptions).forEach((option: ProductOption) => {
+              const optionEl = document.createElement('div');
+              optionEl.textContent = `${option.addonname}: ${option.optionname}`;
+              if (parseFloat(String(option.optionprice || option.price || '0')) > 0) {
+                optionEl.textContent += ` (+$${parseFloat(String(option.optionprice || option.price || '0')).toFixed(2)})`;
+              }
+              cartOptionsListEl.appendChild(optionEl);
+            });
+          } else {
+            cartOptionsEl.classList.add('hidden');
+          }
+        }
+      } else {
+        // Hide cart status
+        if (cartStatusEl) cartStatusEl.classList.add('hidden');
+      }
+    }
+    
+    function addToCart(withOptions = false) {
+      if (withOptions && !validateRequiredOptions()) {
+        return;
+      }
+      
+      const productId = addToCartBtn?.getAttribute('data-product-id');
+      const productName = addToCartBtn?.getAttribute('data-product-name');
+      const productImage = addToCartBtn?.getAttribute('data-product-image');
+      
+      const cartData = localStorage.getItem('cart');
+      let cart: CartItem[] = cartData ? JSON.parse(cartData) : [];
+      
+      // Prepare the product object
+      const product: CartItem = {
+        id: productId || '',
+        name: productName || '',
+        price: totalPrice,
+        image: productImage || '',
+        quantity: 1
+      };
+      
+      // Add selected options if any
+      if (withOptions && Object.keys(selectedOptions).length > 0) {
+        product.selectedOptions = selectedOptions;
+      }
+      
+      // Find if product already exists in cart
+      let existingProductIndex = -1;
+      
+      if (withOptions) {
+        // Find by product ID and exact options
+        const selectedOptionsJSON = JSON.stringify(selectedOptions);
+        existingProductIndex = cart.findIndex(item => 
+          item.id === productId && 
+          JSON.stringify(item.selectedOptions) === selectedOptionsJSON
+        );
+      } else {
+        // Find by product ID without options
+        existingProductIndex = cart.findIndex(item => 
+          item.id === productId && 
+          !item.selectedOptions
+        );
+      }
       
       if (existingProductIndex > -1) {
         // Increase quantity
-        cart[existingProductIndex].quantity += product.quantity;
+        cart[existingProductIndex].quantity += 1;
       } else {
         // Add new product
         cart.push(product);
       }
       
-      // Save cart
+      // Save to localStorage
       localStorage.setItem('cart', JSON.stringify(cart));
       
-      // Update cart count
+      // Update cart count and status
       updateCartCount();
+      updateCartStatus();
+      
+      // Show notification
+      showNotification(`${productName} added to cart`);
       
       // Open cart sidebar if it exists
       if (typeof (window as any).openCart === 'function') {
@@ -339,11 +649,48 @@ const inStock = product.productstock > 0;
       }
     }
     
+    function removeFromCart() {
+      const productId = addToCartBtn?.getAttribute('data-product-id');
+      const cartData = localStorage.getItem('cart');
+      
+      if (!cartData || !productId) return;
+      
+      let cart: CartItem[] = JSON.parse(cartData);
+      
+      // Find and remove the product
+      let indexToRemove = -1;
+      
+      if (hasSelectedOptions) {
+        // Find by product ID and exact options
+        const selectedOptionsJSON = JSON.stringify(selectedOptions);
+        indexToRemove = cart.findIndex(item => 
+          item.id === productId && 
+          JSON.stringify(item.selectedOptions) === selectedOptionsJSON
+        );
+      } else {
+        // Find by product ID without options
+        indexToRemove = cart.findIndex(item => 
+          item.id === productId && 
+          !item.selectedOptions
+        );
+      }
+      
+      if (indexToRemove > -1) {
+        cart.splice(indexToRemove, 1);
+        localStorage.setItem('cart', JSON.stringify(cart));
+        
+        // Update UI
+        updateCartCount();
+        updateCartStatus();
+        showNotification("Item removed from cart");
+      }
+    }
+    
     // Update cart count
     function updateCartCount() {
       const cartData = localStorage.getItem('cart');
-      const cart = cartData ? JSON.parse(cartData) : [];
-      const cartCount = cart.reduce((total: number, item: any) => total + item.quantity, 0);
+      const cart: CartItem[] = cartData ? JSON.parse(cartData) : [];
+      const cartCount = cart.reduce((total: number, item: CartItem) => total + item.quantity, 0);
       
       // Update cart count in header if element exists
       const cartCountElement = document.getElementById('cart-count');
@@ -377,7 +724,84 @@ const inStock = product.productstock > 0;
       }, 3000);
     }
     
-    // Initialize cart count on page load
+    // Event Listeners
+    
+    // Image thumbnails
+    thumbnails.forEach(thumbnail => {
+      thumbnail.addEventListener('click', () => {
+        const imageUrl = thumbnail.getAttribute('data-image-url');
+        if (mainImage && imageUrl) {
+          mainImage.src = imageUrl;
+        }
+      });
+    });
+    
+    // Option selects
+    optionSelects.forEach(select => {
+      select.addEventListener('change', (e) => {
+        const target = e.target as HTMLSelectElement;
+        if (!target) return;
+        
+        const addonId = target.getAttribute('data-addon-id');
+        const selectedOption = target.options[target.selectedIndex];
+        
+        if (target.value) {
+          // Option selected
+          handleOptionSelection(addonId, {
+            optionId: target.value,
+            optionname: selectedOption.getAttribute('data-option-name'),
+            optionprice: parseFloat(selectedOption.getAttribute('data-option-price') || '0'),
+            addonname: target.getAttribute('data-addon-name'),
+            optionimg: selectedOption.getAttribute('data-option-img')
+          });
+        } else {
+          // No option selected
+          handleOptionSelection(addonId, null);
+        }
+      });
+    });
+    
+    // Simple add-on checkboxes
+    simpleAddonCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        if (!target) return;
+        
+        const addonId = target.getAttribute('data-addon-id');
+        
+        if (target.checked) {
+          // Checkbox checked
+          handleOptionSelection(addonId, {
+            addonId: addonId,
+            addonname: target.getAttribute('data-addon-name'),
+            optionname: "Yes",
+            price: parseFloat(target.getAttribute('data-addon-price') || '0'),
+            isSimpleAddon: true
+          });
+        } else {
+          // Checkbox unchecked
+          handleOptionSelection(addonId, null);
+        }
+      });
+    });
+    
+    // Add to cart button
+    if (addToCartBtn) {
+      addToCartBtn.addEventListener('click', () => addToCart(false));
+    }
+    
+    // Add to cart with options button
+    if (addToCartWithOptionsBtn) {
+      addToCartWithOptionsBtn.addEventListener('click', () => addToCart(true));
+    }
+    
+    // Remove from cart button
+    if (removeFromCartBtn) {
+      removeFromCartBtn.addEventListener('click', removeFromCart);
+    }
+    
+    // Initialize
     updateCartCount();
+    updateCartStatus();
   });
 </script> 
