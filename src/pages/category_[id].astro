@@ -2,37 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import { storeData } from '../layouts/data';
 import { optimizeImageUrl } from '../utils/imageUtils';
-import Redis from 'ioredis';
-
-// Environment variables - in a real app, these would be imported from .env
-const REDIS = import.meta.env.REDIS || "redis://localhost:6379";
-const FORTIS_ENV = import.meta.env.FORTIS_ENV || "production";
-
-// Redis setup
-const redisUrl = new URL(REDIS);
-let baseUrl = "https://gunstorewebsite.com";
-let baseTime = 600; // 600 seconds = 10 minutes
-
-if (FORTIS_ENV === "sandbox") {
-  baseUrl = "http://localhost:3000"; // local host for Go fiber backend 
-  baseTime = 30; // 30 seconds for sandbox environment
-}
-
-const redisOptions = {
-  host: redisUrl.hostname,
-  port: parseInt(redisUrl.port), // Convert port to a number
-  password: redisUrl.password,
-  // Add other options as needed 
-};
-
-// Initialize Redis client
-let redisClient;
-try {
-  redisClient = new Redis(redisOptions);
-} catch (error) {
-  console.error('Redis connection error:', error);
-  // Continue without Redis if connection fails
-}
+import { cacheData } from '../lib/redis';
+import { API_BASE_URL, CACHE_DURATION } from '../config';
 
 // Enable server-side rendering for this route
 export const prerender = false;
@@ -56,6 +27,9 @@ const store = {
   logoimage: storeInfo.store.logoimage,
   // ... other store properties
 };
+
+// Base URL for API calls
+const baseUrl = API_BASE_URL;
 
 // Data fetching functions
 const fetchCategory = async (categoryId: string | undefined) => {
@@ -97,92 +71,23 @@ const fetchSubCategories = async (categoryId: string | undefined) => {
   }
 };
 
-// Data fetching with Redis caching
-let categoryData;
-let productsData;
-let subcategoriesData;
-let totalProducts = 0;
-let totalPages = 0;
+// Use our new cache system to fetch data
+const cacheKey = `category:${categoryId}:page:${page}:items:${itemsPerPage}`;
+const cacheDuration = CACHE_DURATION;
 
-if (redisClient) {
-  // Try to get data from Redis cache
-  const cacheKey = `category:${categoryId}:subcategories:${categoryId}:page:${page}:itemsPerPage:${itemsPerPage}`;
-  
-  try {
-    const cachedData = await redisClient.get(cacheKey);
-    
-    if (cachedData) {
-      // Use cached data
-      const parsedData = JSON.parse(cachedData);
-      categoryData = parsedData.category;
-      productsData = parsedData.products;
-      subcategoriesData = parsedData.subcategories;
-      totalProducts = parsedData.totalProducts || 0;
-      totalPages = parsedData.totalPages || 0;
-    } else {
-      // Fetch fresh data
-      const [categoryResponse, productsResponse, subcategoriesResponse] = await Promise.all([
-        fetchCategory(categoryId),
-        fetchProducts(categoryId, page, itemsPerPage),
-        fetchSubCategories(categoryId)
-      ]);
-      
-      categoryData = categoryResponse;
-      productsData = productsResponse;
-      subcategoriesData = subcategoriesResponse;
-      
-      totalProducts = productsData.total || 0;
-      totalPages = Math.ceil(totalProducts / itemsPerPage);
-      
-      // Cache the data
-      await redisClient.setex(
-        cacheKey, 
-        baseTime, 
-        JSON.stringify({
-          category: categoryData,
-          products: productsData,
-          subcategories: subcategoriesData,
-          totalProducts,
-          totalPages
-        })
-      );
-    }
-  } catch (error) {
-    console.error('Redis error:', error);
-    // Fallback to direct fetching if Redis fails
-    const [categoryResponse, productsResponse, subcategoriesResponse] = await Promise.all([
-      fetchCategory(categoryId),
-      fetchProducts(categoryId, page, itemsPerPage),
-      fetchSubCategories(categoryId)
-    ]);
-    
-    categoryData = categoryResponse;
-    productsData = productsResponse;
-    subcategoriesData = subcategoriesResponse;
-    
-    totalProducts = productsData.total || 0;
-    totalPages = Math.ceil(totalProducts / itemsPerPage);
-  }
-} else {
-  // Direct fetching without Redis
-  const [categoryResponse, productsResponse, subcategoriesResponse] = await Promise.all([
-    fetchCategory(categoryId),
-    fetchProducts(categoryId, page, itemsPerPage),
-    fetchSubCategories(categoryId)
-  ]);
-  
-  categoryData = categoryResponse;
-  productsData = productsResponse;
-  subcategoriesData = subcategoriesResponse;
-  
-  totalProducts = productsData.total || 0;
-  totalPages = Math.ceil(totalProducts / itemsPerPage);
-}
+// Fetch all data with caching
+const [categoryData, productsData, subcategoriesData] = await Promise.all([
+  cacheData(`${cacheKey}:info`, () => fetchCategory(categoryId), cacheDuration),
+  cacheData(`${cacheKey}:products`, () => fetchProducts(categoryId, page, itemsPerPage), cacheDuration),
+  cacheData(`${cacheKey}:subcategories`, () => fetchSubCategories(categoryId), cacheDuration)
+]);
 
 // Extract data
 const category = categoryData?.category || {};
 const products = productsData?.products || [];
 const subcategories = subcategoriesData?.subcategories || [];
+const totalProducts = productsData?.total || 0;
+const totalPages = Math.ceil(totalProducts / itemsPerPage);
 
 // Optimize images
 category.image = optimizeImageUrl(category.categoryimage || (category.image && category.image.url));

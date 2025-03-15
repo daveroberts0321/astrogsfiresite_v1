@@ -2,6 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import { storeData, productsData } from '../layouts/data';
 import { optimizeImageUrl } from '../utils/imageUtils';
+import { cacheData } from '../lib/redis';
+import { API_BASE_URL, CACHE_DURATION } from '../config';
 
 // Enable server-side rendering for this route
 export const prerender = false;
@@ -31,7 +33,7 @@ const fetchProduct = async (productId: string | undefined) => {
   if (!productId) return { product: null };
   
   try {
-    let baseUrl = "https://gunstorewebsite.com";
+    let baseUrl = API_BASE_URL;
     const url = `${baseUrl}/apiproductbyid_${productId}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch product');
@@ -47,7 +49,7 @@ const fetchProductAddOns = async (productId: string | undefined) => {
   if (!productId) return null;
   
   try {
-    let baseUrl = "https://gunstorewebsite.com";
+    let baseUrl = API_BASE_URL;
     // Updated URL format to match SvelteKit version
     const url = `${baseUrl}/api/productadd-ons_${productId}`;
     
@@ -71,9 +73,18 @@ const fetchProductAddOns = async (productId: string | undefined) => {
   }
 };
 
-// Fetch data
-const productData = await fetchProduct(productId);
-const addOnsData = await fetchProductAddOns(productId);
+// Fetch data with caching
+const productData = await cacheData(
+  `product:${productId}`, 
+  () => fetchProduct(productId), 
+  CACHE_DURATION
+);
+
+const addOnsData = await cacheData(
+  `product-addons:${productId}`, 
+  () => fetchProductAddOns(productId), 
+  CACHE_DURATION
+);
 
 // Extract product information
 const product = productData.product || {};
