@@ -2,9 +2,12 @@ import fetch from 'node-fetch';
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
 
-const STORENUMBER = '1719256048388139000'
-const REDIS= 'redis://default:testpw@redis-17863.c282.east-us-mz.azure.redns.redis-cloud.com:17863'
-const FORTIS_ENV= 'production'
+// .env file
+dotenv.config();
+// Get environment variables
+const REDIS = process.env.REDIS;
+const FORTIS_ENV = process.env.FORTIS_ENV;
+const STORENUMBER = process.env.STORENUMBER;
 
 let baseUrl = "https://gunstorewebsite.com";
 let baseTime = 30; // 600 seconds = 10 minutes
