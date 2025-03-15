@@ -45,7 +45,7 @@ const categories = categoriesDataFetched.categories ? categoriesDataFetched.cate
     name: cat.categoryname,
     description: cat.categorydesc,
     image: imageUrl,
-    link: `/category/${cat.ID}`  // Updated to match SvelteKit structure
+    link: `/category_${cat.ID}`  // Updated to use underscore format
   };
 }) : [];
 
@@ -76,7 +76,7 @@ const featuredProducts = productsDataFetched.products ? productsDataFetched.prod
     salePrice: salePrice,
     retailPrice: retailPrice,
     image: imageUrl,
-    link: `/product/${prod.ID}`,  // Updated to match SvelteKit structure
+    link: `/product_${prod.ID}`,  // Updated to use underscore format
     stock: stock,
     description: prod.shortdescription || prod.description || ''
   };
@@ -101,7 +101,7 @@ const blogPosts = blogPostsDataFetched.posts ? blogPostsDataFetched.posts.map((p
     date: new Date(post.CreatedAt).toLocaleDateString(),
     excerpt: excerpt,
     image: imageUrl,
-    link: `/blog/${post.ID}`  // Updated to match SvelteKit structure
+    link: `/blog_${post.ID}`  // Updated to use underscore format
   };
 }) : [];
 
@@ -370,7 +370,7 @@ blogPosts.forEach((post: any) => post.image = optimizeImageUrl(post.image));
 <script>
   // Newsletter form handling
   document.addEventListener('DOMContentLoaded', () => {
-    const newsletterForm = document.getElementById('newsletter-form');
+    const newsletterForm = document.getElementById('newsletter-form') as HTMLFormElement;
     const formMessage = document.getElementById('form-message');
 
     if (newsletterForm && formMessage) {

@@ -1,0 +1,383 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { storeData, productsData } from '../layouts/data';
+import { optimizeImageUrl } from '../utils/imageUtils';
+
+// Enable server-side rendering for this route
+export const prerender = false;
+
+// Get the product ID from the URL
+const { id } = Astro.params;
+const productId = id || '0'; // Provide a default value to avoid undefined
+
+// Fetch store data
+const storeInfo = await storeData;
+const store = {
+    storename: storeInfo.store.storename,
+    description: storeInfo.store.description,
+    storenumber: storeInfo.store.storenumber,
+    coverimage: storeInfo.store.coverphoto,
+    logoimage: storeInfo.store.logoimage,
+    freeship: storeInfo.store.freeship,
+    statetax: storeInfo.store.statetax,
+    localtax: storeInfo.store.localtax,
+    taxshipping: storeInfo.store.taxshipping,
+    shiprate: storeInfo.store.shiprate,
+    // ... other store properties
+};
+
+// Fetch product data
+const fetchProduct = async (productId: string | undefined) => {
+  if (!productId) return { product: null };
+  
+  try {
+    let baseUrl = "https://gunstorewebsite.com";
+    const url = `${baseUrl}/apiproductbyid_${productId}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch product');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching product:', error);
+    return { product: null };
+  }
+};
+
+// Fetch product add-ons
+const fetchProductAddOns = async (productId: string | undefined) => {
+  if (!productId) return { addons: [] };
+  
+  try {
+    let baseUrl = "https://gunstorewebsite.com";
+    const url = `${baseUrl}/apiproductaddons_${productId}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch product add-ons');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching product add-ons:', error);
+    return { addons: [] };
+  }
+};
+
+// Fetch data
+const productData = await fetchProduct(productId);
+const addOnsData = await fetchProductAddOns(productId);
+
+// Extract product and add-ons
+const product = productData.product || {};
+const addOns = addOnsData.addons || [];
+
+// Optimize images
+product.image = optimizeImageUrl(product.productimage || (product.image && product.image.url));
+addOns.forEach((addon: any) => {
+  addon.image = optimizeImageUrl(addon.productimage || (addon.image && addon.image.url));
+});
+
+// Page title
+const pageTitle = product.productname ? `${product.productname} - ${store.storename}` : store.storename;
+
+// Format price
+const formatPrice = (price: any) => {
+  if (typeof price === 'number') {
+    return price.toFixed(2);
+  }
+  if (typeof price === 'string') {
+    const parsedPrice = parseFloat(price);
+    return isNaN(parsedPrice) ? '0.00' : parsedPrice.toFixed(2);
+  }
+  return '0.00';
+};
+
+// Check if product is in stock
+const inStock = product.productstock > 0;
+---
+
+<Layout title={pageTitle}>
+  <main class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Breadcrumb -->
+    <nav class="flex mb-6 text-sm">
+      <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+          <a href="/" class="text-gray-700 hover:text-red-600 dark:text-gray-300 dark:hover:text-white">
+            Home
+          </a>
+        </li>
+        <li>
+          <div class="flex items-center">
+            <span class="mx-2 text-gray-400">/</span>
+            {product.categoryid && (
+              <a href={`/category_${product.categoryid}`} class="text-gray-700 hover:text-red-600 dark:text-gray-300 dark:hover:text-white">
+                {product.categoryname || 'Category'}
+              </a>
+            )}
+          </div>
+        </li>
+        <li aria-current="page">
+          <div class="flex items-center">
+            <span class="mx-2 text-gray-400">/</span>
+            <span class="text-gray-500 dark:text-gray-400">{product.productname}</span>
+          </div>
+        </li>
+      </ol>
+    </nav>
+
+    <!-- Product Details -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+      <!-- Product Image -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-md">
+        <img 
+          src={product.image} 
+          alt={product.productname} 
+          class="w-full h-auto object-contain aspect-square"
+        />
+      </div>
+
+      <!-- Product Info -->
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">{product.productname}</h1>
+        
+        <!-- Price -->
+        <div class="flex items-center gap-3 mb-4">
+          {product.productretailprice && parseFloat(product.productretailprice) > parseFloat(product.productprice) && (
+            <p class="text-gray-500 line-through text-lg">
+              ${formatPrice(product.productretailprice)}
+            </p>
+          )}
+          <p class="text-2xl font-bold text-red-600">
+            ${formatPrice(product.productprice)}
+          </p>
+        </div>
+
+        <!-- Stock Status -->
+        <div class="mb-6">
+          {inStock ? (
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+              In Stock: {product.productstock}
+            </span>
+          ) : (
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+              Out of Stock
+            </span>
+          )}
+        </div>
+
+        <!-- Short Description -->
+        {product.shortdescription && (
+          <div class="mb-6 text-gray-700 dark:text-gray-300">
+            <p>{product.shortdescription}</p>
+          </div>
+        )}
+
+        <!-- Add to Cart Button -->
+        <div class="mb-8">
+          <button 
+            id="add-to-cart-btn"
+            class={`w-full py-3 px-6 rounded-md font-semibold text-white transition ${
+              inStock 
+                ? 'bg-red-600 hover:bg-red-700' 
+                : 'bg-gray-400 cursor-not-allowed'
+            }`}
+            disabled={!inStock}
+            data-product-id={product.ID}
+            data-product-name={product.productname}
+            data-product-price={product.productprice}
+            data-product-image={product.image}
+          >
+            {inStock ? 'Add to Cart' : 'Out of Stock'}
+          </button>
+        </div>
+
+        <!-- Product Metadata -->
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            {product.sku && (
+              <div>
+                <span class="text-gray-500 dark:text-gray-400">SKU:</span>
+                <span class="ml-2 text-gray-900 dark:text-gray-200">{product.sku}</span>
+              </div>
+            )}
+            {product.categoryname && (
+              <div>
+                <span class="text-gray-500 dark:text-gray-400">Category:</span>
+                <a 
+                  href={`/category_${product.categoryid}`}
+                  class="ml-2 text-red-600 hover:underline"
+                >
+                  {product.categoryname}
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Product Description -->
+    {product.description && (
+      <div class="mb-12">
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Description</h2>
+        <div class="prose prose-red max-w-none dark:prose-invert text-gray-700 dark:text-gray-300">
+          <p>{product.description}</p>
+        </div>
+      </div>
+    )}
+
+    <!-- Product Add-ons -->
+    {addOns.length > 0 && (
+      <div class="mb-12">
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Recommended Add-ons</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {addOns.map((addon: any) => (
+            <a href={`/product_${addon.ID}`} class="group">
+              <div class="bg-white dark:bg-gray-700 rounded-lg overflow-hidden shadow-md transition hover:shadow-lg h-full">
+                <div class="overflow-hidden">
+                  <img 
+                    src={addon.image} 
+                    alt={addon.productname} 
+                    class="w-full h-48 object-cover transition duration-300 group-hover:scale-105"
+                  />
+                </div>
+                <div class="p-4">
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">{addon.productname}</h3>
+                  <p class="text-red-600 font-bold mb-2">${formatPrice(addon.productprice)}</p>
+                  <button 
+                    class="add-addon-to-cart w-full py-2 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 rounded text-sm font-medium transition"
+                    data-product-id={addon.ID}
+                    data-product-name={addon.productname}
+                    data-product-price={addon.productprice}
+                    data-product-image={addon.image}
+                  >
+                    Add to Cart
+                  </button>
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
+  </main>
+</Layout>
+
+<script>
+  // Cart functionality
+  document.addEventListener('DOMContentLoaded', () => {
+    // Add to cart button
+    const addToCartBtn = document.getElementById('add-to-cart-btn');
+    if (addToCartBtn) {
+      addToCartBtn.addEventListener('click', () => {
+        const productId = addToCartBtn.getAttribute('data-product-id');
+        const productName = addToCartBtn.getAttribute('data-product-name');
+        const productPriceStr = addToCartBtn.getAttribute('data-product-price');
+        const productPrice = productPriceStr ? parseFloat(productPriceStr) : 0;
+        const productImage = addToCartBtn.getAttribute('data-product-image');
+        
+        // Add to cart
+        addToCart({
+          id: productId,
+          name: productName,
+          price: productPrice,
+          image: productImage,
+          quantity: 1
+        });
+        
+        // Show notification
+        showNotification(`${productName} added to cart`);
+      });
+    }
+    
+    // Add-on to cart buttons
+    const addAddonBtns = document.querySelectorAll('.add-addon-to-cart');
+    addAddonBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        const productId = btn.getAttribute('data-product-id');
+        const productName = btn.getAttribute('data-product-name');
+        const productPriceStr = btn.getAttribute('data-product-price');
+        const productPrice = productPriceStr ? parseFloat(productPriceStr) : 0;
+        const productImage = btn.getAttribute('data-product-image');
+        
+        // Add to cart
+        addToCart({
+          id: productId,
+          name: productName,
+          price: productPrice,
+          image: productImage,
+          quantity: 1
+        });
+        
+        // Show notification
+        showNotification(`${productName} added to cart`);
+      });
+    });
+    
+    // Add to cart function
+    function addToCart(product: any) {
+      const cartData = localStorage.getItem('cart');
+      let cart = cartData ? JSON.parse(cartData) : [];
+      
+      // Check if product already in cart
+      const existingProductIndex = cart.findIndex((item: any) => item.id === product.id);
+      
+      if (existingProductIndex > -1) {
+        // Increase quantity
+        cart[existingProductIndex].quantity += product.quantity;
+      } else {
+        // Add new product
+        cart.push(product);
+      }
+      
+      // Save cart
+      localStorage.setItem('cart', JSON.stringify(cart));
+      
+      // Update cart count
+      updateCartCount();
+      
+      // Open cart sidebar if it exists
+      if (typeof (window as any).openCart === 'function') {
+        (window as any).openCart();
+      }
+    }
+    
+    // Update cart count
+    function updateCartCount() {
+      const cartData = localStorage.getItem('cart');
+      const cart = cartData ? JSON.parse(cartData) : [];
+      const cartCount = cart.reduce((total: number, item: any) => total + item.quantity, 0);
+      
+      // Update cart count in header if element exists
+      const cartCountElement = document.getElementById('cart-count');
+      if (cartCountElement) {
+        cartCountElement.textContent = cartCount.toString();
+        
+        if (cartCount > 0) {
+          cartCountElement.classList.remove('hidden');
+        } else {
+          cartCountElement.classList.add('hidden');
+        }
+      }
+    }
+    
+    // Show notification
+    function showNotification(message: string) {
+      // Create notification element
+      const notification = document.createElement('div');
+      notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50 transition-opacity duration-300';
+      notification.textContent = message;
+      
+      // Add to DOM
+      document.body.appendChild(notification);
+      
+      // Remove after 3 seconds
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+          document.body.removeChild(notification);
+        }, 300);
+      }, 3000);
+    }
+    
+    // Initialize cart count on page load
+    updateCartCount();
+  });
+</script> 
