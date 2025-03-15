@@ -1,13 +1,10 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Explicitly set the build environment
+  environment = { NODE_VERSION = "18" }
 
-[build.environment]
-  NODE_VERSION = "18"
-
-# Explicitly disable Go
-[build.environment.GO_VERSION]
-  enabled = false
+# No Go configuration or detection should happen
 
 # Set redirects for SPA behavior
 [[redirects]]

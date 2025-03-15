@@ -2,6 +2,12 @@
   "name": "gsfiresite_v1",
   "type": "module",
   "version": "0.0.1",
+  "description": "Astro-based website built with Node.js",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": ["astro", "javascript", "nodejs", "website"],
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
