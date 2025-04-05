@@ -4,15 +4,27 @@ import '../styles/global.css';
 import { storeData, categoriesData, productsData, blogPostsData } from './data';
 import CartComponent from '../components/CartComponent.astro';
 
+
+
 // Await the data to ensure it's ready for use
 const storeInfo = await storeData;
 //console.log('Store Info:', storeInfo);
 const categories = await categoriesData;
- //console.log('Categories:', categories);
+//console.log('Categories structure:', categories); // Removing temporary log
+//console.log('Categories:', categories);
 const featuredProducts = await productsData;
 //console.log('Featured Products:', featuredProducts);
 const blogPosts = await blogPostsData;
 //console.log('Blog Posts:', blogPosts);
+
+// Generate favicon URL from the store logo if available
+let faviconUrl = '/favicon.ico';
+if (storeInfo.store.logoimage) {
+    // Check if the logo URL contains a query string
+    const hasQueryString = storeInfo.store.logoimage.includes('?');
+    // Append query parameters to resize the image to favicon dimensions
+    faviconUrl = storeInfo.store.logoimage + (hasQueryString ? '&' : '?') + 'width=32&height=32&fit=cover';
+}
 
 // Prepare store information for use in the template
 const store = {
@@ -55,35 +67,20 @@ interface Props {
 
 const { title = store.storename || "GSFirsite" } = Astro.props;
 
-// Navigation items with dropdown support
+// Generate navigation items from categories data
 const navItems = [
+    // Categories dropdown
     { 
-        label: 'Firearms', 
-        href: '/firearms',
-        dropdown: [
-            { label: 'Handguns', href: '/firearms/handguns' },
-            { label: 'Rifles', href: '/firearms/rifles' },
-            { label: 'Shotguns', href: '/firearms/shotguns' }
-        ]
+        label: 'Categories',
+        href: '/categories',
+        dropdown: (categories.categories || []).map((cat: any) => ({
+            label: cat.categoryname,
+            href: `/category_${cat.ID}`,
+            // Store subcategories for potential nested menus
+            subcategories: cat.subcategories
+        }))
     },
-    { 
-        label: 'Accessories', 
-        href: '/accessories',
-        dropdown: [
-            { label: 'Magazines', href: '/accessories/magazines' },
-            { label: 'Mounts', href: '/accessories/mounts' },
-            { label: 'Sights', href: '/accessories/sights' }
-        ]
-    },
-    { 
-        label: 'Gear', 
-        href: '/gear',
-        dropdown: [
-            { label: 'Bags', href: '/gear/bags' },
-            { label: 'Belts', href: '/gear/belts' },
-            { label: 'Apparel', href: '/gear/apparel' }
-        ]
-    },
+    // Then add static links
     { label: 'Blog', href: '/blog' },
     { label: 'About', href: '/about' }
 ];
@@ -94,7 +91,7 @@ const navItems = [
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href={faviconUrl} />
 		<meta name="generator" content={Astro.generator} />
 		<title>{title}</title>
 		<meta name="description" content={store.description}>        
@@ -133,7 +130,7 @@ const navItems = [
 								<img src={store.logoimage} alt="Store Logo" class="h-16 mb-4" />
 							) : (
 								store.storename
-							)}
+							)}					
 						</a>
 					</div>
 
@@ -154,14 +151,35 @@ const navItems = [
 								</a>
 								
 								{item.dropdown && (
-									<div class="absolute left-0 mt-2 w-48 bg-[#1f1f1f] rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-										{item.dropdown.map(subItem => (
-											<a 
-												href={subItem.href}
-												class="block px-4 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white"
-											>
-												{subItem.label}
-											</a>
+									<div class={`absolute left-0 mt-2 ${item.label === 'Categories' ? 'w-64 grid grid-cols-1 gap-1' : 'w-48'} bg-[#1f1f1f] rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 max-h-[80vh] overflow-y-auto`}>
+										{item.dropdown.map((subItem: any) => (
+											<div class="relative group/submenu">
+												<a 
+													href={subItem.href}
+													class="block px-4 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white flex justify-between items-center"
+												>
+													<span>{subItem.label}</span>
+													{subItem.subcategories && subItem.subcategories.length > 0 && (
+														<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+														</svg>
+													)}
+												</a>
+												
+												{/* Nested subcategories dropdown if available */}
+												{subItem.subcategories && subItem.subcategories.length > 0 && (
+													<div class="absolute left-full top-0 w-48 bg-[#1f1f1f] rounded shadow-lg opacity-0 invisible group-hover/submenu:opacity-100 group-hover/submenu:visible transition-all duration-200 z-50">
+														{subItem.subcategories.map((subcatItem: any) => (
+															<a 
+																href={`/subcategory_${subcatItem.ID}`}
+																class="block px-4 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white"
+															>
+																{subcatItem.subcategoryname}
+															</a>
+														))}
+													</div>
+												)}
+											</div>
 										))}
 									</div>
 								)}
@@ -215,24 +233,64 @@ const navItems = [
 					<div class="space-y-1">
 						{navItems.map(item => (
 							<div>
-								<a
-									href={item.href}
-									class="block py-2 text-gray-300 hover:text-white"
-								>
-									{item.label}
-								</a>
-								
-								{item.dropdown && (
-									<div class="ml-4 border-l border-gray-700 pl-4 space-y-1">
-										{item.dropdown.map(subItem => (
-											<a 
-												href={subItem.href}
-												class="block py-2 text-sm text-gray-400 hover:text-white"
-											>
-												{subItem.label}
-											</a>
-										))}
+								{/* If it's Categories, show as expandable section */}
+								{item.label === 'Categories' ? (
+									<div class="mobile-accordion">
+										<button
+											class="mobile-accordion-header w-full text-left block py-2 text-gray-300 hover:text-white flex justify-between items-center"
+											aria-expanded="false"
+										>
+											{item.label}
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+											</svg>
+										</button>
+										<div class="mobile-accordion-content hidden">
+											{item.dropdown.map((category: any) => (
+												<div class="ml-4 border-l border-gray-700 pl-4">
+													<div class="mobile-accordion">
+														<button 
+															class="mobile-accordion-header w-full text-left block py-2 text-gray-300 hover:text-white flex justify-between items-center"
+															aria-expanded="false"
+														>
+															{category.label}
+															{category.subcategories && category.subcategories.length > 0 && (
+																<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+																</svg>
+															)}
+														</button>
+														
+														{/* Link directly to category */}
+														<a href={category.href} class="block py-2 pl-6 text-sm text-gray-400 hover:text-white">
+															View All {category.label}
+														</a>
+														
+														{/* Show subcategories if available */}
+														{category.subcategories && category.subcategories.length > 0 && (
+															<div class="mobile-accordion-content hidden pl-6">
+																{category.subcategories.map((subcategory: any) => (
+																	<a 
+																		href={`/subcategory_${subcategory.ID}`}
+																		class="block py-2 text-sm text-gray-400 hover:text-white"
+																	>
+																		{subcategory.subcategoryname}
+																	</a>
+																))}
+															</div>
+														)}
+													</div>
+												</div>
+											))}
+										</div>
 									</div>
+								) : (
+									<a
+										href={item.href}
+										class="block py-2 text-gray-300 hover:text-white"
+									>
+										{item.label}
+									</a>
 								)}
 							</div>
 						))}
@@ -375,6 +433,32 @@ const navItems = [
 			menuCloseIcon.classList.toggle('hidden');
 		});
 	}
+
+	// Mobile accordion functionality
+	const accordionHeaders = document.querySelectorAll('.mobile-accordion-header');
+	accordionHeaders.forEach(header => {
+		header.addEventListener('click', (e) => {
+			// Prevent navigating when clicking the accordion header
+			e.preventDefault();
+			
+			// Find the content associated with this header
+			const content = header.nextElementSibling;
+			if (content && content.classList.contains('mobile-accordion-content')) {
+				// Toggle the display of the content
+				content.classList.toggle('hidden');
+				
+				// Toggle the rotation of the arrow icon
+				const arrow = header.querySelector('svg');
+				if (arrow) {
+					arrow.classList.toggle('rotate-180');
+				}
+				
+				// Update aria-expanded attribute
+				const isExpanded = header.getAttribute('aria-expanded') === 'true';
+				header.setAttribute('aria-expanded', (!isExpanded).toString());
+			}
+		});
+	});
 
 	// Newsletter form handling
 	const newsletterForm = document.getElementById('newsletter-form') as HTMLFormElement;
